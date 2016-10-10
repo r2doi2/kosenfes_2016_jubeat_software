@@ -1,0 +1,13 @@
+;#include "fumen_read.hsp"
+#include "notu_judge.hsp"
+notu_read("text\\fumen_test.csv")
+music_file=data@fumen_read(1)
+notu_read("text\\fumen_test.csv")
+tempo=data@fumen_read(1)
+notu_read("text\\fumen_test.csv")
+notu_read("text\\fumen_test.csv")
+offset=data@fumen_read(1)
+;screen 0,500,700,0,0,0
+
+write_notu
+title "no-tu end!!"

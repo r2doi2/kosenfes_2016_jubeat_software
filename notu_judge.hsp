@@ -1,0 +1,138 @@
+#include "d3m.hsp"
+#include "fumen_read.hsp"
+#module	notu_judge
+	#include "hspogg.as"
+	#deffunc write_notu
+	screen 0,500,700,0,0,0	; ウィンドウサイズ指定
+
+	dmmini									; サウンド機能初期化
+	dmmload music_file@,1,0	; wavファイル読み込み
+	
+	celload "pics\\marker_s.jpg",,0	; 元画像ファイル
+	pic_id=stat											; 元画像のIDを保存
+	celload "pics\\marker_png1_p.png",,0	; perfect画像ファイル
+	pic_suc=stat
+	celload "pics\\marker_png1_gd.png",,0	; good画像ファイル
+	pic_goo=stat
+	celload "pics\\marker_png1_b.png",,0	; bad画像ファイル
+	pic_bad=stat
+	celdiv pic_id,100,100				; パーツのサイズ
+	celdiv pic_suc,150,150			; 一マスをピクセルで指定している。
+	celdiv pic_goo,150,150
+	celdiv pic_bad,150,150	
+	gmode 0											; 画面コピーモード指定
+	dim notu,4,4,2				; ノーツの配列(x,y,0)=フレーム数
+												; (x,y,1)=このノーツが起動中に立つ
+	dim a,4,4							;ボタンの状態情報(x,y)
+	dim actflag,4,4				;どのタイミングで押されたか判断フラグ(x,y)
+	dim pressed,4,4				;ボタン押されたら立つ(x,y)
+
+	pftiming = 14											;パーフェクトのフレーム
+	heartbeat_interval = 60000/tempo@	;一拍間隔(tempoはincludeされたmain.hsp内の変数だが、末尾に@
+																		;を付ければ利用できる。)
+	
+	time1 = d3timer()	//時計
+	time2 = d3timer()	//ノーツ描画計測
+	time3 = d3timer()	//譜面読み込み計測
+	time4 = d3timer()	//間隔保持計測
+	dmmplay 1
+	while
+		while(time1 - time4 <= offset@)	; オフセット調整待ち
+			await 1
+			time1 = d3timer()
+		wend
+		await 1										;これが無いとhspがcpuを占領してしまい、
+															;落ちる。
+		time1 = d3timer()
+		if(time1 - time2 >= 40){
+			//fps = d3getfps()　　　fpsを測定できる。
+			//title "fps = "+ fps
+			for i,0,4,1
+				for j,0,4,1
+					if(notu(i,j,1)&&notu(i,j,0)<25){	;各ノーツごとにフラグが立っているか
+						notu(i,j,0)++										;もしくはノーツ描画が終わったか
+					}else{
+						notu(i,j,0)=0
+						notu(i,j,1)=0										;一周するとフラグも下ろす
+						actflag(i,j)=0
+						pressed(i,j)=0
+					}
+					pos 10+i*110,100+j*110
+					if(pressed(i,j)==1&&actflag(i,j)==0){	;該当するキーが押されていて、
+																								;ノーツがすでに起動中でないとき
+						if(abs(notu(i,j,0)-pftiming)<=1){
+							actflag(i,j)=1												;perfect中に押された!
+						}else{
+							if(abs(notu(i,0,0)-pftiming)<=2){
+								actflag(i,j)=2											;good中に押された!
+							}else{
+								if(abs(notu(i,0,0)-pftiming)>=3){
+									actflag(i,j)=notu(i,j,0)-pftiming	;bad中に押された!
+								}
+							}
+						}
+					}
+					if(actflag(i,j)==0){											; actflagの値によって描画するノーツの種類変更
+						celput pic_id,notu(i,j,0)								;ただの黒四角に変えるべき?
+					}else{
+						if(actflag(i,j)==1){
+							celput pic_suc,notu(i,j,0)-(pftiming-1),0.666,0.666
+						}else{
+							if(actflag(i,j)==2){
+								celput pic_goo,notu(i,j,0)-(pftiming-2),0.666,0.666
+							}else{
+								celput pic_bad,notu(i,j,0)-(14+actflag(i)),0.666,0.666
+							}
+						}
+					}
+				next
+			next
+			time2 = d3timer()
+		}
+		if(time1 - time3 >=heartbeat_interval){	;一拍ごとに起動するノーツを選ぶ
+			if(data@fumen_read(0)=="e"){					;"e"なら譜面部終わり
+				_break
+			}
+			notu_read("text\\fumen_test.csv")			;次の行読む
+			for i,1,16,1
+				if(format_flag@fumen_read==0){			;includeしたfumen_read.hsp内のformat_flag変数も呼び出せる
+					if(data@fumen_read(i-1)==";"){
+						_break 	; 譜面ファイルの譜面部を読んでいても、コメントの
+										; コマンド「;」ならもう読まない。
+					}
+					notu(peek(data@fumen_read(i-1),0)-48,peek(data@fumen_read(i-1),1)-48,1)=1
+					//譜面が0~nまで入っている
+				}else{
+					if(data@fumen_read(i)==";"){
+						_break
+					}
+					//パラメータが1~nに入っている
+				}
+			next
+			time3 = d3timer()
+		}
+		getkey a(0,0),48+4	;4
+		getkey a(1,0),48+5	;5
+		getkey a(2,0),48+6	;6
+		getkey a(3,0),48+7	;7
+		getkey a(0,1),65+17	;r
+		getkey a(1,1),65+19	;t
+		getkey a(2,1),65+24	;y
+		getkey a(3,1),65+20	;u
+		getkey a(0,2),65+5	;f
+		getkey a(1,2),65+6	;g
+		getkey a(2,2),65+7	;h
+		getkey a(3,2),65+9	;j
+		getkey a(0,3),65+21	;v
+		getkey a(1,3),65+1	;b
+		getkey a(2,3),65+13	;n
+		getkey a(3,3),65+12	;m
+		for i , 0 , 4 , 1
+			for j , 0 , 4 , 1				
+				pressed(i,j)=a(i,j)
+			next
+		next
+	wend
+	return
+#global
+;abcdefghijklmnopqrstuvwxyz
